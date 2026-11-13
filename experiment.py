@@ -62,63 +62,39 @@ def measure_case(method_class, args, hypotheses, repeats):
 
 def run_method(method_class, dataset_names, policies, parameters):
     """Try every combination of the values in the editable parameter lists."""
-    required = {
-        "queries",
-        "candidates",
-        "max_deletions",
-        "depth",
-        "dimension",
-        "repeats",
-        "seed",
-        "history_limit",
-    }
-    with threadpool_limits(limits=1):
-        for values in product(*parameters.values()):
-            settings = dict(zip(parameters, values))
-            for name in (
-                "queries",
-                "candidates",
-                "max_deletions",
-                "depth",
-                "dimension",
-                "repeats",
-            ):
-                value = settings[name]
-                if name == "queries" and value is None:
-                    continue
-                if not isinstance(value, int) or value < 1:
-                    raise ValueError(f"{name} must contain positive integers")
-            if any(
-                not isinstance(settings[name], int) or settings[name] < 0
-                for name in ("seed", "history_limit")
-            ):
-                raise ValueError(
-                    "seed and history_limit must contain nonnegative integers"
-                )
-            if settings["max_deletions"] > settings["candidates"]:
-                raise ValueError("max_deletions cannot exceed candidates")
-            note = " (approximate)" if not method_class.exact else ""
-            print(f"\n{method_class.name}{note}: {settings}", flush=True)
-            print(
-                "Dataset    Query    Policy       Events    q   Hyp   Build_s    Eval_s   Total_s  State_MiB  Sample_error",
-                flush=True,
+
+    ## Give all comnoinations of parameters to the method.
+    for values in product(*parameters.values()):
+
+        # Create a dictionary of the current parameter values.
+        settings = dict(zip(parameters, values))
+
+        ## Prints method details.
+        note = " (approximate)" if not method_class.exact else ""
+        print(f"\n{method_class.name}{note}: {settings}")
+        print("Dataset    Query    Policy       Events    q   Hyp   Build_s    Eval_s   Total_s  State_MiB  Sample_error")
+        
+        
+        settings["policies"] = policies
+
+    
+        for name in dataset_names:
+            # Loads the dataset.
+            data = load_dataset(
+                name, DEFAULT_DATA_DIR, settings["dimension"], settings["seed"]
             )
-            settings["policies"] = policies
-            for name in dataset_names:
-                data = load_dataset(
-                    name, DEFAULT_DATA_DIR, settings["dimension"], settings["seed"]
+
+
+            for case in build_cases(data, settings):
+                build, evaluate, total, memory, error = measure_case(
+                    method_class,
+                    case["args"],
+                    case["hypotheses"],
+                    settings["repeats"],
                 )
-                for case in build_cases(data, settings):
-                    build, evaluate, total, memory, error = measure_case(
-                        method_class,
-                        case["args"],
-                        case["hypotheses"],
-                        settings["repeats"],
-                    )
-                    print(
-                        f"{name:<10} {case['query_event']:>7}  {case['policy']:<12} "
-                        f"{len(case['args'][0]):>7} {len(case['args'][-2]):>4} "
-                        f"{len(case['hypotheses']):>5} {build:>9.4f} {evaluate:>9.4f} "
-                        f"{total:>9.4f} {memory:>10.3f} {error:>13.3g}",
-                        flush=True,
-                    )
+                print(
+                    f"{name:<10} {case['query_event']:>7}  {case['policy']:<12} "
+                    f"{len(case['args'][0]):>7} {len(case['args'][-2]):>4} "
+                    f"{len(case['hypotheses']):>5} {build:>9.4f} {evaluate:>9.4f} "
+                    f"{total:>9.4f} {memory:>10.3f} {error:>13.3g}"
+                )

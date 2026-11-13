@@ -68,26 +68,46 @@ class PairLazy(LazyEvaluator):
         }
 
 
-# Edit these lists, then run this file. Multiple values run every combination.
+
+# Run the experiment separately on each dataset below.
 DATASETS = ["mooc", "wikipedia", "lastfm"]
+
+# Each policy chooses a pool of historical events eligible for deletion.
+# Source: Select the most recent events from intraction history of the source node of the query. Destination node is ignored.
+# Dispersed: Select the random events from intraction history of all nodes of the query.
+# Shared_walk: we pick two latest interation for the source node first, and then from each of that interation we pick 2 latest interations of destination node.
 POLICIES = ["source", "dispersed", "shared_walk"]
+
+
 PARAMETERS = {
-    "queries": [4],  # Use [None] for every eligible development query.
+    # Number of queries to evaluate per dataset/policy. we set to 4.
+    "queries": [4],
+
+    # Number of historical events selected as deletion candidates per query/policy.
     "candidates": [16],
+
+    # Maximum number of deletions to consider per query/policy. we set to 3.
+    # sets 1 : 16C1, sets 2 : 16C2, sets 3 : 16C3, total 16C1 + 16C2 + 16C3 = 696.
     "max_deletions": [3],
+
+    # When going backwards, we have only have 3 hops from source to destination.
     "depth": [3],
+
+    # Dimensions of the node base feature vector.
     "dimension": [64],
+
+    # evaluate each case 3 times; report median timings.
     "repeats": [3],
+
+    # Random seed for query selection, dispersed sampling, and base features.
     "seed": [2026],
-    "history_limit": [0],  # 0 uses the full history before each query.
+
+    # 0 uses all events strictly before the query.
+    "history_limit": [0],
 }
 
 
-def main():
-    from experiment import run_method
-
-    run_method(PairLazy, DATASETS, POLICIES, PARAMETERS)
+from experiment import run_method
 
 
-if __name__ == "__main__":
-    main()
+run_method(PairLazy, DATASETS, POLICIES, PARAMETERS)

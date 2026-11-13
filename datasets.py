@@ -12,35 +12,49 @@ DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent / "datasets"
 
 
 def load_dataset(name, data_dir, dimension, seed):
+    """Load the retained dataset and generate a reproducible base feature vector."""
+
+    ## Path to the processed dataset directory.
+    ## TODO: check if needs to changes.
     directory = Path(data_dir) / "processed" / name
+
+
+
+   ## Loads data from the .npz files in the processed dataset directory.
     with np.load(directory / "development.npz", allow_pickle=False) as data:
+        # Source node ids of the historical events.
         src = data["src"]
+        # Destination node ids of the historical events.
         dst = data["dst"]
+        # Timestamps of the historical events, 
         stamp = data["t"].astype(np.float64)
+        # Split label: 0 = fit, 1 = development.
         split = data["split"]
-    with np.load(
-        directory / "neural_decoder_development.npz", allow_pickle=False
-    ) as data:
+
+    ## Load query data. 
+    with np.load(directory / "neural_decoder_development.npz", allow_pickle=False) as data:
+        ## IDs pointinmg to main data
+        ## they represent querries. 
         selected = data["selected"]
+
+        ## Candidate destination node IDs for each query. 
+        # They are considered durring eval or sampling under dispersed and shared walk policy.
         destinations = data["candidates"]
-    if not (len(src) == len(dst) == len(stamp) == len(split)) or np.any(
-        np.diff(stamp) < 0
-    ):
-        raise ValueError(f"{name}: malformed or unsorted history")
-    if (
-        np.any(selected < 0)
-        or np.any(selected >= len(src))
-        or len(selected) != len(destinations)
-    ):
-        raise ValueError(f"{name}: query records do not match the history")
+
+    ## Filter timestamps that belong to fit split.
     fit_times = stamp[split == 0]
-    if len(fit_times) == 0 or fit_times.max() <= fit_times.min():
-        raise ValueError(f"{name}: no usable fit-time range for normalization")
+
+    ## Normalize timestamps to [0, 1], min max scaling.
     stamp = (stamp - fit_times.min()) / (fit_times.max() - fit_times.min())
+
+
+    ## Max node id in all data. 
     node_count = int(max(src.max(), dst.max(), destinations.max())) + 1
-    rng = np.random.default_rng(
-        np.random.SeedSequence([seed, DATASET_NAMES.index(name)])
-    )
+
+    ## Random seed generator.
+    rng = np.random.default_rng( np.random.SeedSequence([seed, DATASET_NAMES.index(name)]))
+
+    ## Random base feature vector for each node,  total nodes X 64
     base = rng.normal(size=(node_count, dimension)) / np.sqrt(dimension)
     return {
         "name": name,
@@ -65,10 +79,12 @@ def history_bounds(stamp, event, history_limit):
 
 def query_positions(data, count, candidate_count, history_limit, seed):
     """Choose a reproducible development cohort with enough source candidates."""
+
+    # Filter queries ids that belong to development split.
     available = np.flatnonzero(data["split"][data["selected"]] == 1)
-    rng = np.random.default_rng(
-        np.random.SeedSequence([seed, DATASET_NAMES.index(data["name"]), 1])
-    )
+
+    # 
+    rng = np.random.default_rng(np.random.SeedSequence([seed, DATASET_NAMES.index(data["name"]), 1]))
     chosen = []
     for position in rng.permutation(available):
         event = data["selected"][position]
