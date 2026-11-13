@@ -83,7 +83,7 @@ def query_positions(data, count, candidate_count, history_limit, seed):
     # Filter queries ids that belong to development split.
     available = np.flatnonzero(data["split"][data["selected"]] == 1)
 
-    # 
+    # Geberate random seed generator for query selection.
     rng = np.random.default_rng(np.random.SeedSequence([seed, DATASET_NAMES.index(data["name"]), 1]))
     chosen = []
     for position in rng.permutation(available):
